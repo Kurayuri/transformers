@@ -222,8 +222,11 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
     """
     cos = cos.unsqueeze(unsqueeze_dim)
     sin = sin.unsqueeze(unsqueeze_dim)
-    q_embed = (q * cos) + (rotate_half(q) * sin)
-    k_embed = (k * cos) + (rotate_half(k) * sin)
+    # q_embed = (q * cos) + (rotate_half(q) * sin) if q is not None else None
+    # k_embed = (k * cos) + (rotate_half(k) * sin) if k is not None else None
+    q_embed = (q * cos[..., -q.shape[-2]:, :]) + (rotate_half(q) * sin[..., -q.shape[-2]:, :])
+    k_embed = (k * cos[..., -k.shape[-2]:, :]) + (rotate_half(k) * sin[..., -k.shape[-2]:, :])
+
     return q_embed, k_embed
 
 
@@ -544,6 +547,8 @@ class LlamaSdpaAttention(LlamaAttention):
             # sin and cos are specific to RoPE models; cache_position needed for the static cache
             cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
             key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs)
+        # If not want to use kv_cache with rotary, uncomment the following line and commit line before past_key_value is updated
+        # query_states, key_states = apply_rotary_pos_emb(query_states, key_states, cos=cos, sin=sin)
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
